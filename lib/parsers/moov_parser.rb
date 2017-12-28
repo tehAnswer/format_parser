@@ -156,7 +156,7 @@ class FormatParser::MOOVParser
     if respond_to?("parse_#{atom_type}_atom", including_privates = true)
       send("parse_#{atom_type}_atom", io, atom_size)
     else
-      :opaque
+      nil # We can't look inside this leaf atom
     end
   end
 
