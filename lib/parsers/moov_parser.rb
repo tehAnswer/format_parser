@@ -7,8 +7,12 @@ class FormatParser::MOOVParser
     end
   end
 
+  # Atoms (boxes) that are known to only contain children, no data fields
   KNOWN_BRANCH_ATOM_TYPES = %w( moov mdia trak clip edts minf dinf stbl udta meta)
+
+  # Atoms (boxes) that are known to contain both leaves and data fields
   KNOWN_BRANCH_AND_LEAF_ATOM_TYPES = %w( meta ) # the udta.meta thing used by iTunes
+
   SIZEOF = lambda { |pattern|
     bytes_per_element = {
       'v' => 2, # 16bit uints
@@ -175,7 +179,11 @@ class FormatParser::MOOVParser
       end
 
       atom_size, atom_type = size_and_type.unpack('Na4')
-      children, fields = if KNOWN_BRANCH_ATOM_TYPES.include?(atom_type)
+
+      # TODO: handle overlarge atoms (atom_size == 1 and the 64 bits right after is the size)
+      children, fields = if KNOWN_BRANCH_AND_LEAF_ATOM_TYPES.include?(atom_type)
+        parse_atom_children_and_data_fields(io, atom_size, atom_type)
+      elsif KNOWN_BRANCH_ATOM_TYPES.include?(atom_type)
         [extract_atom_stream(io, atom_size - 8, current_branch + [atom_type]), nil]
       else # Assume leaf atom
         [nil, parse_atom_fields_per_type(io, atom_size, atom_type)]
