@@ -52,3 +52,4 @@ Therefore we adapt the following approaches:
 
 - MIT licensed fixture files from the FastImage and Dimensions projects
 - fixture.aiff was created by one of the project maintainers and is MIT licensed
+- bmff.mp4 is borrowed from the [bmff](https://github.com/zuku/bmff) project
