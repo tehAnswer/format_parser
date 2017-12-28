@@ -22,7 +22,6 @@ describe FormatParser::MOOVParser do
       output << swimlanes.join << connector << connector_down << horz << atom.to_s << "\n"
       if af = atom.atom_fields
         af.each do |(field, value)|
-          # Print data fields indented underneath the atom
           output << swimlanes.join << connector_left << ('   %s: %s' % [field, value.inspect]) << "\n"
         end
       end
