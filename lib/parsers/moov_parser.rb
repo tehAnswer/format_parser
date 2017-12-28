@@ -1,9 +1,15 @@
 class FormatParser::MOOVParser
   include FormatParser::IOUtils
 
-  class Atom < Struct.new(:at, :atom_size, :atom_type, :parent_types, :children, :atom_fields)
+  class Atom < Struct.new(:at, :atom_size, :atom_type, :path, :children, :atom_fields)
     def to_s
-      "%s (%s): %d bytes, %s" % [atom_type, parent_types.join('.'), atom_size, atom_fields]
+      "%s (%s): %d bytes at offset %d" % [atom_type, path.join('.'), atom_size, at]
+    end
+
+    def as_json(*a)
+      members.each_with_object({}) do |member_name, o|
+        o[member_name] = public_send(member_name).as_json(*a)
+      end
     end
   end
 
@@ -48,16 +54,25 @@ class FormatParser::MOOVParser
     max_read = 0xFFFFFFFF
     atom_tree = extract_atom_stream(io, max_read)
 
-    ftyp_atom = atom_tree.find {|e| e.atom_type == 'ftyp' }
+    ftyp_atom = find_first_atom_by_path(atom_tree, 'ftyp')
     file_type = ftyp_atom.atom_fields.fetch(:major_brand)
 
     FormatParser::FileInformation.video(
-      file_type: file_type,
+      file_type: file_type[0..2], # MP4 files have "mp42" where 2 is the sub-version, not very useful. m4a have "M4A "
       intrinsics: atom_tree,
     )
   end
 
   private
+
+  def find_first_atom_by_path(atoms, *atom_path)
+    type_to_find = atom_path.shift
+    requisite = atoms.find {|e| e.atom_type == type_to_find }
+    
+    return requisite if atom_path.empty?
+    return nil unless requisite
+    find_first_atom_by_path(requisite.children || [], *atom_path)
+  end
 
   # An MPEG4/MOV/M4A will start with the "ftyp" atom. The atom must have a length
   # of at least 8 (to accomodate the atom size and the atom type itself) plus the major
@@ -97,7 +112,7 @@ class FormatParser::MOOVParser
 
   def parse_tkhd_atom(io, _)
     tkhd_info_bites = [
-      :version, :a1,
+      :version, :N1,
       :flags, :a3,
       :ctime, :N1,
       :mtime, :N1,
@@ -118,7 +133,7 @@ class FormatParser::MOOVParser
 
   def parse_mdhd_atom(io, _)
     mdhd_info_bites = [
-      :version, :a1,
+      :version, :N1,
       :flags, :a3,
       :ctime, :N1,
       :mtime, :N1,
@@ -132,7 +147,7 @@ class FormatParser::MOOVParser
 
   def parse_mvhd_atom(io, _)
     mvhd_info_bites = [
-      :version, :a1,
+      :version, :N1,
       :flags, :a3,
       :ctime, :N1,
       :mtime, :N1,
