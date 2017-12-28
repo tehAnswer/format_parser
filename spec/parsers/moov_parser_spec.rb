@@ -34,9 +34,10 @@ describe FormatParser::MOOVParser do
     result = subject.information_from_io(File.open(fpath, 'rb'))
 
     expect(result).not_to be_nil
-    expect(result.file_type).to eq('mp42')
-    expect(result.intrinsics).not_to be_nil
 
+    expect(result.file_type).to eq('mp4')
+    expect(result.file_nature).to eq(:video)
+    expect(result.intrinsics).not_to be_nil
     deep_print_atoms(result.intrinsics, $stderr)
   end
 
