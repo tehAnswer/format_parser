@@ -102,17 +102,17 @@ class FormatParser::MOOVParser
     # and 8 once more for the major_brand and minor_version. The remaining
     # numbr of bytes is reserved for the compatible brands, 4 bytes per
     # brand.
-    num_brands = atom_size - 8 - 8
+    num_brands = (atom_size - 8 - 8) / 4
     ret = {
       major_brand: io.read(4).unpack('a4').first,
       minor_version: to_binary_coded_decimal(io.read(4)),
-      compatible_brands: io.read(4 * num_brands).unpack('a4*'),
+      compatible_brands: (1..num_brands).map { io.read(4).unpack('a4').first },
     }
   end
 
   def parse_tkhd_atom(io, _)
     tkhd_info_bites = [
-      :version, :N1,
+      :version, :C1,
       :flags, :a3,
       :ctime, :N1,
       :mtime, :N1,
@@ -125,29 +125,31 @@ class FormatParser::MOOVParser
       :volume, :n1,
       :reserved_3, :a2,
       :matrix_structure, :a36,
-      :track_width, :a4,
-      :track_height, :a4,
+      :track_width, :N1,
+      :track_height, :N1,
     ]
-    read_and_unpack_dict(io, tkhd_info_bites)
+    dict = read_and_unpack_dict(io, tkhd_info_bites)
+    dict[:matrix_structure] = dict[:matrix_structure].unpack('N9')
+    dict
   end
 
   def parse_mdhd_atom(io, _)
     mdhd_info_bites = [
-      :version, :N1,
+      :version, :C1,
       :flags, :a3,
       :ctime, :N1,
       :mtime, :N1,
       :tscale, :N1,
       :duration, :N1,
-      :language, :N1,
-      :quality, :N1,
+      :language, :n1,
+      :quality, :n1,
     ]
     read_and_unpack_dict(io, mdhd_info_bites)
   end
 
   def parse_mvhd_atom(io, _)
     mvhd_info_bites = [
-      :version, :N1,
+      :version, :C1,
       :flags, :a3,
       :ctime, :N1,
       :mtime, :N1,
@@ -164,7 +166,69 @@ class FormatParser::MOOVParser
       :current_time, :N1,
       :next_trak_id, :N1,
     ]
-    read_and_unpack_dict(io, mvhd_info_bites)
+    dict = read_and_unpack_dict(io, mvhd_info_bites)
+    dict[:matrix_structure] = dict[:matrix_structure].unpack('N9')
+    dict
+  end
+
+  def parse_dref_atom(io, _)
+    dref_info_bites = [
+      :version, :C1,
+      :flags, :a3,
+      :num_entries, :N1,
+    ]
+    dict = read_and_unpack_dict(io, dref_info_bites)
+    num_entries = dict[:num_entries]
+    entries = (1..num_entries).map do
+      dref_entry_bites = [
+        :size, :N1,
+        :type, :a4,
+        :version, :C1,
+        :flags, :a3,
+      ]
+      entry = read_and_unpack_dict(io, dref_entry_bites)
+      entry[:data] = io.read(entry[:size] - 12)
+      entry
+    end
+    dict[:entries] = entries
+    dict
+  end
+
+  def parse_elst_atom(io, _)
+    elst_info_bites = [
+      :version, :C1,
+      :flags, :a3,
+      :num_entries, :N1,
+    ]
+    dict = read_and_unpack_dict(io, elst_info_bites)
+    num_entries = dict[:num_entries]
+    entries = (1..num_entries).map do
+      entry_bites = [
+        :track_duration, :N1,
+        :media_time, :N1,
+        :media_rate, :N1,
+      ]
+      read_and_unpack_dict(io, entry_bites)
+    end
+    dict[:entries] = entries
+    dict
+  end
+
+  def parse_hdlr_atom(io, atom_size)
+    atom_size -= 8
+    hdlr_info_bites = [
+      :version, :C1,
+      :flags, :a3,
+      :component_type, :a4,
+      :component_subtype, :a4,
+      :component_manufacturer, :a4,
+      :component_flags, :a4,
+      :component_flags_mask, :a4,
+    ]
+    atom_data = StringIO.new(io.read(atom_size))
+    dict = read_and_unpack_dict(atom_data, hdlr_info_bites)
+    dict[:component_name] = atom_data.read
+    dict
   end
 
   def parse_atom_fields_per_type(io, atom_size, atom_type)
