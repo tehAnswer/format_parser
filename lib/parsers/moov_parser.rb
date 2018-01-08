@@ -57,7 +57,8 @@ class FormatParser::MOOVParser
     ftyp_atom = find_first_atom_by_path(atom_tree, 'ftyp')
     file_type = ftyp_atom.atom_fields.fetch(:major_brand)
 
-    FormatParser::FileInformation.video(
+    FormatParser::FileInformation.new(
+      file_nature: :video,
       file_type: file_type[0..2], # MP4 files have "mp42" where 2 is the sub-version, not very useful. m4a have "M4A "
       intrinsics: atom_tree,
     )
